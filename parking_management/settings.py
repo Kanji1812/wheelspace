@@ -61,6 +61,7 @@ INSTALLED_APPS = [
 ]+THIRD_PARTY_APPS+POST_INSTALLED_APP
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -161,3 +162,5 @@ EMAIL_HOST_USER = 'parthlanzariya123@gmail.com'        # Your Gmail address
 EMAIL_HOST_PASSWORD = 'yskboeahpksncfta'       # App password from Gmail
 
 # RESEND_API_KEY = config("RESEND_API_KEY")
+
+CORS_ALLOW_ALL_ORIGINS =True

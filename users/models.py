@@ -23,5 +23,5 @@ class Customer(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'user_type': 'customer'})
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
     number_plate = models.CharField(max_length=20, unique=True)
-    insurance_document = models.FileField(upload_to='insurance_docs/')
-    noc_document = models.FileField(upload_to='noc_docs/',null=True,blank=True)
+    licence_number = models.CharField(max_length=20, unique=True)
+    rc_book_number = models.CharField(max_length=20, unique=True)
