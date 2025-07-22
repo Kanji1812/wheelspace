@@ -61,9 +61,9 @@ INSTALLED_APPS = [
 ]+THIRD_PARTY_APPS+POST_INSTALLED_APP
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -164,3 +164,10 @@ EMAIL_HOST_PASSWORD = 'yskboeahpksncfta'       # App password from Gmail
 # RESEND_API_KEY = config("RESEND_API_KEY")
 
 CORS_ALLOW_ALL_ORIGINS =True
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+# CORS_ALLOWED_ORIGINS =
+CORS_ALLOW_ALL_ORIGINS = True

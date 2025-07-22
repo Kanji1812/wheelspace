@@ -8,13 +8,13 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     vehicle_type = serializers.IntegerField(required=False)
     number_plate = serializers.CharField(required=False)
-    insurance_document = serializers.FileField(required=False)
-    noc_document = serializers.FileField(required=False)
+    licence_number = serializers.CharField(required=False)
+    rc_book_number = serializers.CharField(required=False)
 
     class Meta:
         model = User
         fields = ['username', 'email', 'phone_number', 'password', 'user_type', 'age', 'address', 'profile_image',
-                  'vehicle_type', 'number_plate', 'insurance_document', 'noc_document']
+                  'vehicle_type', 'number_plate', 'licence_number', 'rc_book_number']
 
     def validate(self, attrs):
         user_type = attrs.get("user_type")
@@ -22,9 +22,20 @@ class RegisterSerializer(serializers.ModelSerializer):
         age = attrs.get("age")
         password = attrs.get("password")
         email = attrs.get("email")
+        number_plate = attrs.get('number_plate',"")
+        licence_number = attrs.get('licence_number','')
+        rc_book_number = attrs.get('rc_book_number','')
 
         if not isinstance(user_type, str) or user_type.lower() not in ["owner", "customer"]:
             raise serializers.ValidationError({"user_type": "Enter a valid user type: 'owner' or 'customer'."})
+        if user_type.lower()  == "customer":
+            if  not number_plate :
+                raise serializers.ValidationError({"number_plate": "Enter a valid Number Plate."})
+            if not licence_number:
+                raise serializers.ValidationError({"licence_number": "Enter a valid Licence Number."})
+
+            if not rc_book_number :
+                raise serializers.ValidationError({"rc_book_number": "Enter a valid rc book number."})
 
         if len(phone_number) < 10:
             raise serializers.ValidationError({"phone_number": "Enter a valid phone number."})
@@ -54,8 +65,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         vehicle_type_id = validated_data.pop('vehicle_type', None)
         number_plate = validated_data.pop('number_plate', None)
-        insurance_document = validated_data.pop('insurance_document', None)
-        noc_document = validated_data.pop('noc_document', None)
+        licence_number = validated_data.pop('licence_number', None)
+        rc_book_number = validated_data.pop('rc_book_number', None)
 
         user = User(**validated_data)
         user.set_password(password)
@@ -63,13 +74,14 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         if user_type.lower() == "customer":
+
             vehicle_tobj = VehicleType.objects.get(id=vehicle_type_id)
             customer = Customer.objects.create(
                 user=user,
                 vehicle_type=vehicle_tobj,
                 number_plate=number_plate,
-                insurance_document=insurance_document,
-                noc_document=noc_document
+                licence_number=licence_number,
+                rc_book_number=rc_book_number
             )
             customer.save()
 
