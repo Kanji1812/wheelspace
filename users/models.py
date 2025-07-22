@@ -11,14 +11,24 @@ class User(AbstractUser):
         ('customer', 'Customer'),
         ('guard', 'Guard'),
     ]
-    phone_number = models.CharField(max_length=15,unique=True)
-    otp = models.CharField(_("OTP"),max_length=6,null=True,blank=True)
-    age = models.IntegerField(_("Age"),null=True)
-    address = models.TextField(_("Address"),null=True, blank=True)
+
+    username = None  # Remove username field
+    email = models.EmailField(_('email address'), unique=True)  # Make email required & unique
+
+    phone_number = models.CharField(max_length=15, unique=True)
+    otp = models.CharField(_("OTP"), max_length=6, null=True, blank=True)
+    age = models.IntegerField(_("Age"), null=True)
+    address = models.TextField(_("Address"), null=True, blank=True)
     profile_image = models.ImageField(upload_to='profiles/', null=True, blank=True)
-    user_type = models.CharField(_("Role"),choices=USER_TYPE_CHOICES,null=False,blank=False)
+    user_type = models.CharField(_("Role"), choices=USER_TYPE_CHOICES, null=False, blank=False)
     is_verified = models.BooleanField(default=False)
 
+    USERNAME_FIELD = 'email'  # Tell Django to use email as the identifier
+    REQUIRED_FIELDS = ['phone_number', 'user_type']  # Fields required when creating a superuser
+
+    def __str__(self):
+        return self.email
+    
 class Customer(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'user_type': 'customer'})
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
