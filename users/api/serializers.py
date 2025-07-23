@@ -13,7 +13,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'phone_number', 'password', 'user_type', 'age', 'address', 'profile_image',
+        fields = ['full_name', 'email', 'phone_number', 'password', 'user_type', 'age', 'address', 'profile_image',
                   'vehicle_type', 'number_plate', 'licence_number', 'rc_book_number']
 
     def validate(self, attrs):
@@ -25,7 +25,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         number_plate = attrs.get('number_plate',"")
         licence_number = attrs.get('licence_number','')
         rc_book_number = attrs.get('rc_book_number','')
-
+        full_name = attrs.get("full_name")
+        if not full_name:
+            raise serializers.ValidationError({"full_name": "Enter a valid User Name."})
         if not isinstance(user_type, str) or user_type.lower() not in ["owner", "customer"]:
             raise serializers.ValidationError({"user_type": "Enter a valid user type: 'owner' or 'customer'."})
         if user_type.lower()  == "customer":
@@ -54,9 +56,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"vehicle_type": "Vehicle type is required for customers."})
             if not attrs.get('number_plate'):
                 raise serializers.ValidationError({"number_plate": "Number plate is required for customers."})
-            if not attrs.get('insurance_document'):
-                raise serializers.ValidationError({"insurance_document": "Insurance document is required for customers."})
-
+            
         return attrs
 
     def create(self, validated_data):
