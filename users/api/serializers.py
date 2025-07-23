@@ -5,6 +5,12 @@ from users.models import Customer, User
 from base.utils.generate_otp import generate_otp
 
 class RegisterSerializer(serializers.ModelSerializer):
+    """
+    Serializer for user registration.
+
+    Handles creation of both 'owner' and 'customer' users. For 'customer' user_type,
+    vehicle details must also be provided.
+    """
     password = serializers.CharField(write_only=True)
     vehicle_type = serializers.IntegerField(required=False)
     number_plate = serializers.CharField(required=False)
@@ -17,6 +23,21 @@ class RegisterSerializer(serializers.ModelSerializer):
                   'vehicle_type', 'number_plate', 'licence_number', 'rc_book_number']
 
     def validate(self, attrs):
+        """
+        Validate input fields for registration.
+
+        Ensures:
+        - Required fields are present and valid.
+        - Email is unique.
+        - Password meets minimum length.
+        - For 'customer' type, vehicle and license information is required.
+
+        Returns:
+            dict: Validated data.
+
+        Raises:
+            serializers.ValidationError: If validation fails.
+        """
         user_type = attrs.get("user_type")
         phone_number = attrs.get("phone_number")
         age = attrs.get("age")
@@ -60,9 +81,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        """
+        Create a new user instance.
+
+        Sets password, generates OTP, and for customer users, creates related Customer record.
+
+        Args:
+            validated_data (dict): Validated registration data.
+
+        Returns:
+            User: The created user instance.
+        """
         user_type = validated_data.get('user_type')
         password = validated_data.pop('password')
-
         vehicle_type_id = validated_data.pop('vehicle_type', None)
         number_plate = validated_data.pop('number_plate', None)
         licence_number = validated_data.pop('licence_number', None)

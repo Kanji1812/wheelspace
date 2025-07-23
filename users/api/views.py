@@ -16,7 +16,31 @@ from base.utils.generate_otp import generate_otp
 from django.contrib.auth.hashers import make_password
 
 class RegisterView(APIView):
+    """
+    Register a new user.
+
+    Creates a new user account with the provided data, then sends an OTP for verification
+    via SMS and email.
+
+    Responses:
+        201 Created: User registered successfully.
+        400 Bad Request: Invalid data or registration failed.
+    """
     def post(self, request):
+        """
+        Handle user registration.
+
+        Accepts:
+        - full_name: str
+        - email: str
+        - phone_number: str
+        - password: str
+        - user_type: str
+
+        Returns:
+        - 201 with user data and success message on success.
+        - 400 with error details if input is invalid.
+        """
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -64,7 +88,29 @@ class RegisterView(APIView):
             status=status.HTTP_400_BAD_REQUEST
         )
 class AccountVerification(APIView):
+    """
+    Verify user account using OTP.
+
+    This endpoint checks if the provided OTP matches the one sent to the user’s email.
+
+    Responses:
+        200 OK: Account verified successfully.
+        400 Bad Request: Missing/invalid email or OTP.
+        404 Not Found: User not found.
+    """
     def post(self, request):
+        """
+        POST method to verify OTP and activate the user's account.
+
+        Accepts:
+        - email: str
+        - otp: str
+
+        Returns:
+        - 200 with access and refresh tokens if OTP is valid.
+        - 400 if OTP is incorrect or missing.
+        - 404 if user not found.
+        """
         email = request.data.get('email')
         otp = request.data.get('otp')
 
@@ -102,7 +148,27 @@ class AccountVerification(APIView):
 
 
 class LoginView(APIView):
+    """
+    User login endpoint.
+
+    Authenticates user with email and password and returns JWT tokens.
+
+    Responses:
+        200 OK: Login successful.
+        400 Bad Request: Invalid credentials.
+    """
     def post(self, request):
+        """
+        POST method to log in the user.
+
+        Accepts:
+        - email: str
+        - password: str
+
+        Returns:
+        - 200 with access and refresh JWT tokens if credentials are valid.
+        - 400 if credentials are invalid.
+        """
         email = request.data.get('email')  
         password = request.data.get('password')
 
@@ -125,7 +191,29 @@ class LoginView(APIView):
 
 
 class ResendOtp(APIView):
+    """
+    Resend OTP to the user.
+
+    Sends a new OTP via SMS and email to the registered user.
+
+    Responses:
+        200 OK: OTP sent.
+        400 Bad Request: Email is missing.
+        404 Not Found: User not found.
+    """
+
     def post(self, request):
+        """
+        POST method to resend OTP.
+
+        Accepts:
+        - email: str
+
+        Returns:
+        - 200 if OTP is resent.
+        - 400 if email is missing.
+        - 404 if user does not exist.
+        """
         email = request.data.get('email')
 
         if not email:
@@ -173,7 +261,28 @@ class ResendOtp(APIView):
 
 
 class RequestPasswordResetAPIView(APIView):
+    """
+    Request password reset via OTP.
+
+    Sends a password reset OTP to the user's registered email.
+
+    Responses:
+        200 OK: OTP sent for password reset.
+        400 Bad Request: Missing email.
+        404 Not Found: User not found.
+    """
     def post(self, request):
+        """
+        POST method to initiate password reset.
+
+        Accepts:
+        - email: str
+
+        Returns:
+        - 200 if OTP is sent successfully.
+        - 400 if email is missing.
+        - 404 if user does not exist.
+        """
         email = request.data.get('email')
         if not email:
             return api_response(message="Email is required", status=status.HTTP_400_BAD_REQUEST)
@@ -214,7 +323,30 @@ class RequestPasswordResetAPIView(APIView):
 
 
 class ConfirmPasswordResetAPIView(APIView):
+    """
+    Confirm password reset using OTP.
+
+    Verifies the OTP and sets the new password for the user.
+
+    Responses:
+        200 OK: Password reset successfully.
+        400 Bad Request: Missing fields or invalid OTP.
+        404 Not Found: User not found.
+    """
     def post(self, request):
+        """
+        POST method to confirm password reset.
+
+        Accepts:
+        - email: str
+        - otp: str
+        - new_password: str
+
+        Returns:
+        - 200 if password is reset successfully.
+        - 400 if any input is missing or OTP is invalid.
+        - 404 if user does not exist.
+        """
         email = request.data.get('email')
         otp = request.data.get('otp')
         new_password = request.data.get('new_password')
