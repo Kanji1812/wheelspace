@@ -1,9 +1,9 @@
 # vehicles/api/urls.py
 
 from rest_framework import routers
-from vehicles.api.views import VehicleTypeView
+from vehicles.api.views import VehicleTypeViewSet
 
 router = routers.DefaultRouter()
-router.register(r'vehicle-types', VehicleTypeView, basename='vehicle-type')
+router.register(r'vehicle-types', VehicleTypeViewSet, basename='vehicle-type')
 
 urlpatterns = router.urls
