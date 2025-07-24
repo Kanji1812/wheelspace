@@ -3,7 +3,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from users.api.views import (AccountVerification, LoginView, RegisterView,ResendOtp,RequestPasswordResetAPIView,ConfirmPasswordResetAPIView)
+from users.api.views import (AccountVerification, LoginView, RegisterView,ResendOtp,RequestPasswordResetAPIView,ConfirmPasswordResetAPIView,CustomerOnlyView)
 urlpatterns = [
     # # JWT auth endpoints
     # path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -15,4 +15,6 @@ urlpatterns = [
     path('password-reset/request/', RequestPasswordResetAPIView.as_view(), name='request-password-reset'),
     path('password-reset/confirm/', ConfirmPasswordResetAPIView.as_view(), name='confirm-password-reset'),
 
+    # test only 
+    # path("CustomerOnlyView/", CustomerOnlyView.as_view(), name="CustomerOnlyView")
 ]

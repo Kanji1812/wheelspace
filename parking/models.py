@@ -5,13 +5,13 @@ from users.models import User
 from django.utils.translation import gettext_lazy as _
 
 class ParkingArea(BaseModel):
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'user_type': 'owner'})
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'user_type': 'owner'},blank=True)
     name = models.CharField(max_length=100)
     address = models.TextField(_("Address"),blank=True,null=True)
     property_area = models.PositiveIntegerField(_("Area of SQFT"),default=0)  # in square feet
-    latitude = models.FloatField()
-    longitude = models.FloatField()
-    gmap_link = models.URLField(null=True,blank=True)
+    latitude = models.CharField(blank=True,null=True)
+    longitude = models.CharField(blank=True,null=True)
+    gmap_link = models.CharField(null=True,blank=True)
     total_capacity = models.PositiveIntegerField(default=0)
     available_capacity = models.PositiveIntegerField(default=0)
     is_verified = models.BooleanField(default=False)

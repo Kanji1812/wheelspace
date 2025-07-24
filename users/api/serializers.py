@@ -60,7 +60,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             if not rc_book_number :
                 raise serializers.ValidationError({"rc_book_number": "Enter a valid rc book number."})
 
-        if len(phone_number) < 10:
+        if len(phone_number) < 10 or User.objects.filter(phone_number=phone_number).exists():
             raise serializers.ValidationError({"phone_number": "Enter a valid phone number."})
 
         if not isinstance(age, int) or age < 17:
