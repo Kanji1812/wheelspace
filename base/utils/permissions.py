@@ -17,3 +17,7 @@ class IsAdmin(BasePermission):
 class Isguard(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.user_type == 'guard'
+class IsOwnerOrIsAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (request.user.user_type == 'admin'or request.user.user_type == 'owner')
+     
