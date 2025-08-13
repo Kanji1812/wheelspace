@@ -6,3 +6,5 @@ __pycache__/
 venv/
 /media/vehicle_icons
 /.vs
+# Ignore entire media directory
+/media/

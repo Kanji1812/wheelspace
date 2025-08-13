@@ -1,19 +1,20 @@
 from django.conf import settings
+from django.template.loader import render_to_string
+from django.core.mail import EmailMessage
+from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import make_password
+from rest_framework import status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
-from base.utils.sms_message import send_sms
 from users.models import User
 from .serializers import RegisterSerializer
-from django.template.loader import render_to_string
-from rest_framework import viewsets
-from rest_framework.decorators import action
-from django.core.mail import EmailMessage
+from base.utils.sms_message import send_sms
 from base.utils.standardized_response import api_response
 from base.utils.generate_otp import generate_otp
-from django.contrib.auth.hashers import make_password
+from base.utils.permissions import IsCustomer, IsOwner
 
 class RegisterView(APIView):
     """
@@ -366,3 +367,11 @@ class ConfirmPasswordResetAPIView(APIView):
         user.save()
 
         return api_response(message="Password reset successfully", status=200)
+
+
+
+class CustomerOnlyView(APIView):
+    permission_classes = [IsAuthenticated,IsCustomer]
+    def get(self, request):
+
+        return Response({"message": "Hello Customer!","name":f"{request.user.full_name}"})

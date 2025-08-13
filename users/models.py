@@ -37,7 +37,7 @@ class User(AbstractUser):
     ]
     objects = CustomUserManager()
     username = None  # Remove username field
-    full_name = models.CharField(max_length=15, blank=True,null=True)
+    full_name = models.TextField( blank=True,null=True)
     email = models.EmailField(_('email address'), unique=True)  # Make email required & unique
 
     phone_number = models.CharField(max_length=15, unique=True)
