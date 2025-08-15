@@ -1,16 +1,24 @@
 import json
-from rest_framework import viewsets, permissions, status
-from rest_framework.parsers import MultiPartParser, JSONParser, FormParser
-from parking.models import ParkingArea, ParkingGuard,VehicleInfo
-from parking.api.serializers import GuardUserSerializer, ParkingAreaSerializer, VehicleInfoSerializer
+
+from django.core.exceptions import ValidationError
+from django.db import transaction
+
+from rest_framework import permissions, status, viewsets
+from rest_framework.exceptions import APIException
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+
+from parking.models import ParkingArea, ParkingGuard, VehicleInfo
+from parking.api.serializers import (
+    GuardUserSerializer,
+    ParkingAreaSerializer,
+    VehicleInfoSerializer,
+)
+
 from base.utils.permissions import IsOwner, IsOwnerOrIsAdmin
-import json
 from base.utils.standardized_response import api_response
+
 from users.models import User
 from vehicles.models import VehicleType
-from django.db import transaction
-from django.core.exceptions import ValidationError
-from rest_framework.exceptions import APIException
 
 class ParkingAreaViewSet(viewsets.ModelViewSet):
     queryset = ParkingArea.objects.all()
@@ -25,14 +33,13 @@ class ParkingAreaViewSet(viewsets.ModelViewSet):
             vehicle_infos = json.loads(data.get("vehicle_info", "[]")) if isinstance(data.get("vehicle_info"), str) else data.get("vehicle_info", [])
             parking_guards = json.loads(data.get("parking_guard", "[]")) if isinstance(data.get("parking_guard"), str) else data.get("parking_guard", [])
         except json.JSONDecodeError:
-            return api_response({}, "Invalid JSON format in nested fields", status=400)
-
+            return api_response(data={}, message="Invalid JSON format in nested fields", status=status.HTTP_400_BAD_REQUEST,success=False)
         data["vehicle_info"] = vehicle_infos
         data["parking_guard"] = parking_guards
 
         serializer = self.get_serializer(data=data)
         if not serializer.is_valid():
-            return api_response(serializer.errors, "Validation failed", status=400)
+            return api_response(data=serializer.errors, message="Validation failed", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         try:
             with transaction.atomic():
@@ -102,11 +109,11 @@ class ParkingAreaViewSet(viewsets.ModelViewSet):
                     )
 
         except ValidationError as ve:
-            return api_response({}, f" {str(ve)}", status=400)
+            return api_response(data={}, message=f" {str(ve)}", status=status.HTTP_400_BAD_REQUEST,success=False)
         except Exception as e:
-            return api_response({}, f" {str(e)}", status=500)
+            return api_response(data={}, message=f" {str(e)}", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return api_response(self.get_serializer(instance).data, "Parking area created", status=201)
+        return api_response(data=self.get_serializer(instance).data, message="Parking area created", status=status.HTTP_201_CREATED,success=True)
 
     def list(self, request, *args, **kwargs):
         if request.user.user_type == "owner":
@@ -114,12 +121,12 @@ class ParkingAreaViewSet(viewsets.ModelViewSet):
         else :
             queryset = ParkingArea.objects.all()
         serializer = self.get_serializer(queryset, many=True)
-        return api_response(serializer.data, "Parking areas retrieved", status=200)
+        return api_response(data=serializer.data, message="Parking areas retrieved", status=status.HTTP_200_OK,success=True)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return api_response(serializer.data, "Parking area detail", status=200)
+        return api_response(data=serializer.data, message="Parking area detail", status=status.HTTP_200_OK,success=True)
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -130,18 +137,18 @@ class ParkingAreaViewSet(viewsets.ModelViewSet):
             data["vehicle_info"] = json.loads(data["vehicle_info"]) if isinstance(data.get("vehicle_info"), str) else data.get("vehicle_info", [])
             data["parking_guard"] = json.loads(data["parking_guard"]) if isinstance(data.get("parking_guard"), str) else data.get("parking_guard", [])
         except json.JSONDecodeError:
-            return api_response({}, "Invalid JSON format in nested fields", status=400)
+            return api_response(data={}, message="Invalid JSON format in nested fields", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         serializer = self.get_serializer(instance, data=data, partial=partial)
         if serializer.is_valid():
             instance = serializer.save()
-            return api_response(self.get_serializer(instance).data, "Updated successfully", status=200)
-        return api_response(serializer.errors, "Update failed", status=400)
+            return api_response(data=self.get_serializer(instance).data,message="Updated successfully", status=status.HTTP_200_OK)
+        return api_response(data=serializer.errors,message= "Update failed", status=status.HTTP_400_BAD_REQUEST,success=False)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.delete()
-        return api_response(message="Parking area deleted", status=204)
+        return api_response(message="Parking area deleted", status=status.HTTP_200_OK,success=True)
 
 class VehicleInfoViewSet(viewsets.ModelViewSet):
     queryset= VehicleInfo.objects.all()
@@ -151,12 +158,12 @@ class VehicleInfoViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return api_response(serializer.data, "Vehicle Info detail", status=200)
+        return api_response(data=serializer.data, message="Vehicle Info detail", status=status.HTTP_200_OK,success=True)
 
     def list(self, request, *args, **kwargs):
         queryset = VehicleInfo.objects.all()
         serializer = self.get_serializer(queryset, many=True)
-        return api_response(serializer.data, "Vehicle Info retrieved", status=200)
+        return api_response(serializer.data, "Vehicle Info retrieved", status=status.HTTP_200_OK,success=True)
 
 
 class GuardUserViewSet(viewsets.ModelViewSet):
