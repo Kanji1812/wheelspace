@@ -3,18 +3,23 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMessage
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
-from rest_framework import status, viewsets
+
+from rest_framework import status, viewsets, permissions,filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from django_filters.rest_framework import DjangoFilterBackend
+
 from users.models import User
-from .serializers import RegisterSerializer
+from users.api.serializers import AdminSerializer, RegisterSerializer  
+
 from base.utils.sms_message import send_sms
 from base.utils.standardized_response import api_response
 from base.utils.generate_otp import generate_otp
-from base.utils.permissions import IsCustomer, IsOwner
+from base.utils.permissions import IsCustomer, IsOwner, IsAdmin
 
 class RegisterView(APIView):
     """
@@ -73,21 +78,24 @@ class RegisterView(APIView):
             refresh = RefreshToken.for_user(user)
 
             return api_response(
+                success=True,
                 message=f"{user.user_type} registered successfully!",
                 data={
-                    'email': user.email,
-                    'user_type': user.user_type,
-                    'full_name':user.full_name,
+                    # 'email': user.email,
+                    # 'user_type': user.user_type,
+                    # 'full_name':user.full_name,
                 },
                 status=status.HTTP_201_CREATED
             )
 
         # If serializer is not valid
         return api_response(
+            success=False,
             message="Registration failed",
             data=serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+    
 class AccountVerification(APIView):
     """
     Verify user account using OTP.
@@ -116,26 +124,27 @@ class AccountVerification(APIView):
         otp = request.data.get('otp')
 
         if not email:
-            return api_response(message="Email cannot be empty.", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Email cannot be empty.", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         if len(email) < 6:
-            return api_response(message="Enter Valid Email", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Enter Valid Email", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         if not otp or len(str(otp)) < 4:
-            return api_response(message="Enter Valid OTP", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Enter Valid OTP", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND)
+            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND,success=False)
 
         if str(user.otp) != str(otp):
-            return api_response(message="Incorrect OTP", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Incorrect OTP", status=status.HTTP_400_BAD_REQUEST,success=False)
         user.otp = None
         user.is_verified = True
         user.save()
         refresh = RefreshToken.for_user(user)
 
         return api_response(
+            success=True,
             message="Account verified successfully!",
             data={
                 'refresh': str(refresh),
@@ -178,6 +187,7 @@ class LoginView(APIView):
         if user is not None:
             refresh = RefreshToken.for_user(user)
             return api_response(
+                success=True,
                 message="Login successful",
                 data={
                     'refresh': str(refresh),
@@ -188,7 +198,7 @@ class LoginView(APIView):
                 status=status.HTTP_200_OK
             )
         else:
-            return api_response(message="Invalid credentials", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Invalid credentials", status=status.HTTP_400_BAD_REQUEST,success=False)
 
 
 class ResendOtp(APIView):
@@ -218,11 +228,11 @@ class ResendOtp(APIView):
         email = request.data.get('email')
 
         if not email:
-            return api_response(message="Email is required", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Email is required", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND)
+            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND,success=False)
 
         # Generate new OTP (optional)
         new_otp = generate_otp()
@@ -230,7 +240,7 @@ class ResendOtp(APIView):
         user.save()
 
         # Send SMS
-        send_sms(user.phone_number, 'verification', code=new_otp)
+        # send_sms(user.phone_number, 'verification', code=new_otp)
 
         # Send Email
         context = {
@@ -254,6 +264,7 @@ class ResendOtp(APIView):
             print(f"Error sending email: {e}")
 
         return api_response(
+            success=True,
             message="OTP resent successfully",
             data={"email": user.email},
             status=status.HTTP_200_OK
@@ -286,11 +297,11 @@ class RequestPasswordResetAPIView(APIView):
         """
         email = request.data.get('email')
         if not email:
-            return api_response(message="Email is required", status=status.HTTP_400_BAD_REQUEST)
+            return api_response(message="Email is required", status=status.HTTP_400_BAD_REQUEST,success=False)
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND)
+            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND,success=False)
 
         otp = generate_otp()
         user.otp = otp
@@ -320,7 +331,7 @@ class RequestPasswordResetAPIView(APIView):
         except Exception as e:
             print(f"Email error: {e}")
 
-        return api_response(message="OTP sent for password reset", data={"email": user.email}, status=200)
+        return api_response(message="OTP sent for password reset", data={"email": user.email}, status=status.HTTP_200_OK,success=True)
 
 
 class ConfirmPasswordResetAPIView(APIView):
@@ -353,25 +364,51 @@ class ConfirmPasswordResetAPIView(APIView):
         new_password = request.data.get('new_password')
 
         if not all([email, otp, new_password]):
-            return api_response(message="Email, OTP, and new password are required", status=400)
+            return api_response(message="Email, OTP, and new password are required", status=status.HTTP_400_BAD_REQUEST)
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return api_response(message="User not found", status=404)
+            return api_response(message="User not found", status=status.HTTP_404_NOT_FOUND)
 
         if str(user.otp) != str(otp):
-            return api_response(message="Invalid OTP", status=400)
+            return api_response(message="Invalid OTP", status=status.HTTP_400_BAD_REQUEST)
 
         user.password = make_password(new_password)
         user.otp = None  
         user.save()
 
-        return api_response(message="Password reset successfully", status=200)
-
-
+        return api_response(message="Password reset successfully", status=status.HTTP_200_OK)
 
 class CustomerOnlyView(APIView):
     permission_classes = [IsAuthenticated,IsCustomer]
     def get(self, request):
 
         return Response({"message": "Hello Customer!","name":f"{request.user.full_name}"})
+
+
+class AdminViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = AdminSerializer
+    # permission_classes = [permissions.IsAuthenticated, IsAdmin]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['age', 'user_type']  # Add more fields if needed
+    search_fields = ['full_name', 'email', 'phone_number', 'address']
+    ordering_fields = ['full_name', 'email', 'age']
+    ordering = ['full_name']  # Default ordering
+
+    def get_queryset(self):
+        return super().get_queryset().filter(user_type=User.Admin)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        return api_response(
+            success=True,
+            message="Admin user created successfully!",
+            data={
+            },
+            status=status.HTTP_201_CREATED
+        )
+    # de

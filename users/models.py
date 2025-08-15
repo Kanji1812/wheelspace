@@ -29,11 +29,15 @@ class CustomUserManager(BaseUserManager):
 
 
 class User(AbstractUser):
+    Admin = "admin"
+    ParkingOwner = "owner"
+    Customer = "customer"
+    Guard = "guard"
     USER_TYPE_CHOICES = [
-        ('admin', 'Admin'),
-        ('owner', 'Parking Owner'),
-        ('customer', 'Customer'),
-        ('guard', 'Guard'),
+        (Admin, 'Admin'),
+        (ParkingOwner, 'Parking Owner'),
+        (Customer, 'Customer'),
+        (Guard, 'Guard'),
     ]
     objects = CustomUserManager()
     username = None  # Remove username field

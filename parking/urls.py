@@ -1,14 +1,10 @@
-# urls.py
-
-from django.urls import path, include
+from django.urls import path
 from rest_framework.routers import DefaultRouter
-from parking.api.views import ParkingAreaViewSet,VehicleInfoViewSet
+
+from parking.api.views import ParkingAreaViewSet, VehicleInfoViewSet
 
 router = DefaultRouter()
-router.register(r'parking-areas', ParkingAreaViewSet, basename='parkingarea')
-router.register(r'vehicle-info', VehicleInfoViewSet, basename='vehicleinfo')
+router.register(r'parking-areas', ParkingAreaViewSet, basename='parking-area')
+router.register(r'vehicle-info', VehicleInfoViewSet, basename='vehicle-info')
 
-
-urlpatterns = [
-    path('', include(router.urls)),
-]
+urlpatterns = router.urls
