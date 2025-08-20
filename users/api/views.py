@@ -4,6 +4,7 @@ from django.core.mail import EmailMessage
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
 
+from base.utils.pagination import DefaultPagination
 from rest_framework import status, viewsets, permissions,filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -14,7 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
 
 from users.models import User
-from users.api.serializers import AdminSerializer, RegisterSerializer  
+from users.api.serializers import AdminSerializer, OwnerSerializer, RegisterSerializer  
 
 from base.utils.sms_message import send_sms
 from base.utils.standardized_response import api_response
@@ -156,17 +157,19 @@ class AccountVerification(APIView):
         )
     
 
-
 class LoginView(APIView):
     """
     User login endpoint.
 
-    Authenticates user with email and password and returns JWT tokens.
+    Authenticates user with email and password and returns JWT tokens if the user is verified.
 
     Responses:
         200 OK: Login successful.
         400 Bad Request: Invalid credentials.
+        403 Forbidden: User not verified.
     """
+    # permission_classes = [AllowAny]
+
     def post(self, request):
         """
         POST method to log in the user.
@@ -176,30 +179,41 @@ class LoginView(APIView):
         - password: str
 
         Returns:
-        - 200 with access and refresh JWT tokens if credentials are valid.
+        - 200 with access and refresh JWT tokens if credentials and verification are valid.
         - 400 if credentials are invalid.
+        - 403 if user is not verified.
         """
-        email = request.data.get('email')  
+        email = request.data.get('email')
         password = request.data.get('password')
 
         user = authenticate(email=email, password=password)
 
         if user is not None:
+            if not user.is_verified:
+                return api_response(
+                    success=False,
+                    message="Account is not verified. Please verify your email or contact support.",
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
             refresh = RefreshToken.for_user(user)
             return api_response(
                 success=True,
                 message="Login successful",
+                status=status.HTTP_200_OK,
                 data={
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
                     'user_type': user.user_type,
-                    'name':user.full_name,
-                },
-                status=status.HTTP_200_OK
+                    'name': user.full_name,
+                }
             )
-        else:
-            return api_response(message="Invalid credentials", status=status.HTTP_400_BAD_REQUEST,success=False)
 
+        return api_response(
+            success=False,
+            message="Invalid credentials",
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 class ResendOtp(APIView):
     """
@@ -385,20 +399,20 @@ class CustomerOnlyView(APIView):
 
         return Response({"message": "Hello Customer!","name":f"{request.user.full_name}"})
 
-
 class AdminViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = AdminSerializer
-    # permission_classes = [permissions.IsAuthenticated, IsAdmin]
-
+    permission_classes = [IsAuthenticated, IsAdmin]
+    pagination_class = DefaultPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['age', 'user_type']  # Add more fields if needed
+    filterset_fields = ['age', 'user_type']
     search_fields = ['full_name', 'email', 'phone_number', 'address']
     ordering_fields = ['full_name', 'email', 'age']
-    ordering = ['full_name']  # Default ordering
+    ordering = ['full_name']
 
     def get_queryset(self):
         return super().get_queryset().filter(user_type=User.Admin)
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -407,8 +421,89 @@ class AdminViewSet(viewsets.ModelViewSet):
         return api_response(
             success=True,
             message="Admin user created successfully!",
-            data={
-            },
+            data=serializer.data,
             status=status.HTTP_201_CREATED
         )
-    # de
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return api_response(
+                success=True,
+                message="Admin users fetched successfully!",
+                data={
+                    "count": self.paginator.page.paginator.count,
+                    "next": self.paginator.get_next_link(),
+                    "previous": self.paginator.get_previous_link(),
+                    "results": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        serializer = self.get_serializer(queryset, many=True)
+        return api_response(
+            success=True,
+            message="Admin users fetched successfully!",
+            data=serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return api_response(
+            success=True,
+            message="Admin user retrieved successfully!",
+            data=serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return api_response(
+            success=True,
+            message="Admin user updated successfully!",
+            data=serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+
+        return api_response(
+            success=True,
+            message="Admin user deleted successfully!",
+            data={},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+class OwnerViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
+    serializer_class = OwnerSerializer
+    pagination_class = DefaultPagination
+
+    # Enable filtering, searching, and ordering
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+
+    # Searchable fields
+    search_fields = ["full_name", "email", "phone_number", "address"]
+
+    # Orderable fields
+    ordering_fields = ["full_name", "email", "age", "is_verified", "id"]
+    ordering = ["id"]  # default order
+
+    def get_queryset(self):
+        return User.objects.filter(user_type=User.ParkingOwner)

@@ -150,9 +150,12 @@ class AdminSerializer(serializers.ModelSerializer):
         if not full_name:
             raise serializers.ValidationError("Enter a valid User Name.")
 
-        if len(phone_number) < 10 or User.objects.filter(phone_number=phone_number).exists():
+        if len(phone_number) < 10 :
             raise serializers.ValidationError( "Enter a valid phone number.")
 
+        if  User.objects.filter(phone_number=phone_number).exists():
+            raise serializers.ValidationError("phone number already registered..")
+        
         if not isinstance(age, int) or age < 17:
             raise serializers.ValidationError("Enter a valid age.")
 
@@ -172,3 +175,31 @@ class AdminSerializer(serializers.ModelSerializer):
         user.is_verified = True
         user.save()
         return user
+
+
+
+class OwnerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "full_name",
+            "email",
+            "phone_number",
+            "otp",
+            "age",
+            "address",
+            "profile_image",
+            "user_type",
+            "is_verified",
+        ]
+        read_only_fields = ["user_type"]  # prevent editing user_type from client
+
+    def create(self, validated_data):
+        validated_data["user_type"] = User.ParkingOwner  # force owner type
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data["user_type"] = User.ParkingOwner  # keep as owner type
+        return super().update(instance, validated_data)
+    
