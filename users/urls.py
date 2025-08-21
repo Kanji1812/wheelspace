@@ -11,11 +11,13 @@ from users.api.views import (
     ConfirmPasswordResetAPIView,
     CustomerOnlyView,
     AdminViewSet,
+    OwnerViewSet
 )
 
 # Router for ViewSets
 router = DefaultRouter()
 router.register(r'admin', AdminViewSet, basename='admin')  # Registers /api/admin/
+router.register(r'owners', OwnerViewSet, basename='owner')
 
 # URL patterns
 urlpatterns = [
