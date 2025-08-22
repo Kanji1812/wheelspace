@@ -25,7 +25,6 @@ class GuardUserSerializer(serializers.ModelSerializer):
 
 
 class ParkingAreaSerializer(serializers.ModelSerializer):
-    legal_doc = serializers.FileField(required=False)
     slots = VehicleInfoSerializer(many=True, read_only=True) 
     guards = serializers.SerializerMethodField()
 

@@ -11,16 +11,17 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
-
-from users.models import User
+from rest_framework.exceptions import ValidationError
+from users.models import Customer, User
 from users.api.serializers import AdminSerializer, OwnerSerializer, RegisterSerializer  
 
 from base.utils.sms_message import send_sms
 from base.utils.standardized_response import api_response
 from base.utils.generate_otp import generate_otp
-from base.utils.permissions import IsCustomer, IsOwner, IsAdmin
+from base.utils.permissions import IsCustomer, IsOwner, IsAdmin, IsOwnerOrIsAdmin
+from vehicles.models import VehicleType
 
 class RegisterView(APIView):
     """
@@ -59,7 +60,7 @@ class RegisterView(APIView):
             }
 
             # Send SMS
-            send_sms(user.phone_number, 'verification', code=user.otp)
+            # send_sms(user.phone_number, 'verification', code=user.otp)
 
             # Render and send email
             html_content = render_to_string('email_template/demo_email_body.html', context)
@@ -393,55 +394,60 @@ class ConfirmPasswordResetAPIView(APIView):
 
         return api_response(message="Password reset successfully", status=status.HTTP_200_OK)
 
-class CustomerOnlyView(APIView):
-    permission_classes = [IsAuthenticated,IsCustomer]
-    def get(self, request):
-
-        return Response({"message": "Hello Customer!","name":f"{request.user.full_name}"})
 
 class AdminViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
     serializer_class = AdminSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
     pagination_class = DefaultPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['age', 'user_type']
     search_fields = ['full_name', 'email', 'phone_number', 'address']
     ordering_fields = ['full_name', 'email', 'age']
     ordering = ['full_name']
+    # permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsAdmin]  # enable this later
 
     def get_queryset(self):
-        return super().get_queryset().filter(user_type=User.Admin)
+        return User.objects.filter(user_type=User.Admin)
+
+    def get_paginated_response(self, data):
+        return api_response(
+            success=True,
+            message="Admin users fetched successfully!",
+            data={
+                "count": self.paginator.page.paginator.count,
+                "next": self.paginator.get_next_link(),
+                "previous": self.paginator.get_previous_link(),
+                "results": data,
+            },
+            status=status.HTTP_200_OK
+        )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        try:
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
 
-        return api_response(
-            success=True,
-            message="Admin user created successfully!",
-            data=serializer.data,
-            status=status.HTTP_201_CREATED
-        )
+            return api_response(
+                success=True,
+                message="Admin user created successfully!",
+                data=[serializer.data],
+                status=status.HTTP_201_CREATED
+            )
+        except ValidationError as e:
+            return api_response(
+                success=False,
+                message="Validation Error",
+                data=e.detail,
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
-
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return api_response(
-                success=True,
-                message="Admin users fetched successfully!",
-                data={
-                    "count": self.paginator.page.paginator.count,
-                    "next": self.paginator.get_next_link(),
-                    "previous": self.paginator.get_previous_link(),
-                    "results": serializer.data
-                },
-                status=status.HTTP_200_OK
-            )
+            return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
         return api_response(
@@ -465,19 +471,28 @@ class AdminViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
 
-        return api_response(
-            success=True,
-            message="Admin user updated successfully!",
-            data=serializer.data,
-            status=status.HTTP_200_OK
-        )
+            return api_response(
+                success=True,
+                message="Admin user updated successfully!",
+                data=[serializer.data],   # wrap in list to match your format
+                status=status.HTTP_200_OK
+            )
+
+        except ValidationError as e:
+            return api_response(
+                success=False,
+                message="Validation Error",
+                data=e.detail,  # serializer validation errors
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def partial_update(self, request, *args, **kwargs):
-        kwargs['partial'] = True
-        return self.update(request, *args, **kwargs)
+        return super().partial_update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -491,19 +506,170 @@ class AdminViewSet(viewsets.ModelViewSet):
         )
 
 class OwnerViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated, IsAdmin]
     serializer_class = OwnerSerializer
     pagination_class = DefaultPagination
-
-    # Enable filtering, searching, and ordering
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-
-    # Searchable fields
-    search_fields = ["full_name", "email", "phone_number", "address"]
-
-    # Orderable fields
-    ordering_fields = ["full_name", "email", "age", "is_verified", "id"]
-    ordering = ["id"]  # default order
-
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['age','email', 'phone_number', 'address']
+    search_fields = ['full_name', 'email', 'phone_number', 'address']
+    ordering_fields = ['full_name', 'email', 'age','phone_number']
+    ordering = ['full_name']
+    # permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsOwnerOrIsAdmin]  
     def get_queryset(self):
         return User.objects.filter(user_type=User.ParkingOwner)
+
+    def get_paginated_response(self, data):
+        return api_response(
+            success=True,
+            message="Owner users fetched successfully!",
+            data={
+                "count": self.paginator.page.paginator.count,
+                "next": self.paginator.get_next_link(),
+                "previous": self.paginator.get_previous_link(),
+                "results": data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+
+            return api_response(
+                success=True,
+                message="Owner user created successfully!",
+                data=[serializer.data],
+                status=status.HTTP_201_CREATED
+            )
+        except ValidationError as e:
+            return api_response(
+                success=False,
+                message="Validation Error",
+                data=e.detail,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return api_response(
+            success=True,
+            message="Owner users fetched successfully!",
+            data=serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return api_response(
+            success=True,
+            message="Owner user retrieved successfully!",
+            data=serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+
+            return api_response(
+                success=True,
+                message="Owner user updated successfully!",
+                data=[serializer.data],
+                status=status.HTTP_200_OK
+            )
+
+        except ValidationError as e:
+            return api_response(
+                success=False,
+                message="Validation Error",
+                data=e.detail,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+
+        return api_response(
+            success=True,
+            message="Owner user deleted successfully!",
+            data={},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    Single CRUD endpoint for both Owner and Customer users.
+    - Owner: Only User object is handled.
+    - Customer: User + Customer profile (vehicle type).
+    """
+    queryset = User.objects.all()
+    serializer_class = RegisterSerializer
+    pagination_class = DefaultPagination
+
+    # def get_permissions(self):
+    #     if self.action in ["create"]:
+    #         return [AllowAny()]
+    #     return [IsAuthenticated()]
+
+    def create(self, request, *args, **kwargs):
+        """Handles user + (if customer) customer profile creation"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        return Response(
+            {"message": f"{user.user_type.capitalize()} registered successfully", "data": serializer.data},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        """Update user and related customer if needed"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        # Update Customer vehicle type if user_type is customer
+        if user.user_type == User.Customer and "vehicle_type" in request.data:
+            vehicle_tobj = VehicleType.objects.get(id=request.data["vehicle_type"])
+            Customer.objects.update_or_create(
+                user=user, defaults={"vehicle_type": vehicle_tobj}
+            )
+
+        return Response(
+            {"message": f"{user.user_type.capitalize()} updated successfully", "data": serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete user and cascade delete customer if exists"""
+        instance = self.get_object()
+        user_type = instance.user_type
+
+        if user_type == User.Customer:
+            Customer.objects.filter(user=instance).delete()
+
+        instance.delete()
+        return Response(
+            {"message": f"{user_type.capitalize()} deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT,
+        )

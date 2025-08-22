@@ -22,3 +22,18 @@ class ParkingBooking(BaseModel):
     otp_code = models.CharField(max_length=4)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_online = models.BooleanField(default=False)
+    
+    created_by = models.ForeignKey(
+        'users.User', 
+        null=True,
+        blank=True,
+        related_name='created_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
+    updated_by = models.ForeignKey(
+        'users.User',  
+        null=True,
+        blank=True,
+        related_name='updated_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )

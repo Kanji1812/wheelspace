@@ -8,14 +8,26 @@ class ParkingArea(BaseModel):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'user_type': 'owner'},blank=True)
     name = models.CharField(max_length=100)
     address = models.TextField(_("Address"),blank=True,null=True)
-    property_area = models.PositiveIntegerField(_("Area of SQFT"),default=0)  # in square feet
     latitude = models.CharField(blank=True,null=True)
     longitude = models.CharField(blank=True,null=True)
     gmap_link = models.CharField(null=True,blank=True)
     total_capacity = models.PositiveIntegerField(default=0)
     available_capacity = models.PositiveIntegerField(default=0)
     is_verified = models.BooleanField(default=False)
-    legal_doc = models.FileField(upload_to='land_docs/',null=True,blank=True)
+    created_by = models.ForeignKey(
+        'users.User', 
+        null=True,
+        blank=True,
+        related_name='created_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
+    updated_by = models.ForeignKey(
+        'users.User',  
+        null=True,
+        blank=True,
+        related_name='updated_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
 
 class VehicleInfo(BaseModel):
     vehicle_type = models.ForeignKey(VehicleType, verbose_name=_("Vehicle Type"), on_delete=models.CASCADE)
@@ -23,6 +35,20 @@ class VehicleInfo(BaseModel):
     capacity = models.PositiveIntegerField(default=0)
     rate_per_hour = models.DecimalField(max_digits=6, decimal_places=2,default=0)
     available_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        'users.User', 
+        null=True,
+        blank=True,
+        related_name='created_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
+    updated_by = models.ForeignKey(
+        'users.User',  
+        null=True,
+        blank=True,
+        related_name='updated_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
 
 class ParkingGuard(BaseModel):
     parking_area = models.ForeignKey(ParkingArea, on_delete=models.CASCADE)

@@ -9,14 +9,13 @@ from users.api.views import (
     ResendOtp,
     RequestPasswordResetAPIView,
     ConfirmPasswordResetAPIView,
-    CustomerOnlyView,
     AdminViewSet,
     OwnerViewSet
 )
 
 # Router for ViewSets
 router = DefaultRouter()
-router.register(r'admin', AdminViewSet, basename='admin')  # Registers /api/admin/
+router.register(r'admin', AdminViewSet, basename='admin')  
 router.register(r'owners', OwnerViewSet, basename='owner')
 
 # URL patterns
@@ -35,8 +34,6 @@ urlpatterns = [
     path('password-reset/request/', RequestPasswordResetAPIView.as_view(), name='request-password-reset'),
     path('password-reset/confirm/', ConfirmPasswordResetAPIView.as_view(), name='confirm-password-reset'),
 
-    # Test endpoint (optional)
-    # path('customer-only/', CustomerOnlyView.as_view(), name='customer-only'),
 ]
 
 # Combine router URLs

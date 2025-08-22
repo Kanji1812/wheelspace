@@ -45,6 +45,7 @@ POST_INSTALLED_APP =[
     "payments",
     "withdrawals",
     "disputes",
+    "subscription",
 ]
 THIRD_PARTY_APPS =[
     "rest_framework_simplejwt",

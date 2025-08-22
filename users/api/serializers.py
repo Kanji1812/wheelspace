@@ -13,14 +13,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     """
     password = serializers.CharField(write_only=True)
     vehicle_type = serializers.IntegerField(required=False)
-    number_plate = serializers.CharField(required=False)
-    licence_number = serializers.CharField(required=False)
-    rc_book_number = serializers.CharField(required=False)
-
+    
     class Meta:
         model = User
         fields = ['full_name', 'email', 'phone_number', 'password', 'user_type', 'age', 'address', 'profile_image',
-                  'vehicle_type', 'number_plate', 'licence_number', 'rc_book_number']
+                  'vehicle_type']
 
     def validate(self, attrs):
         """
@@ -39,9 +36,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             serializers.ValidationError: If validation fails.
         """
         user_type = attrs.get("user_type")
-        number_plate = attrs.get('number_plate',"")
-        licence_number = attrs.get('licence_number','')
-        rc_book_number = attrs.get('rc_book_number','')
         phone_number = attrs.get("phone_number")
         age = attrs.get("age")
         password = attrs.get("password")
@@ -51,22 +45,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"full_name": "Enter a valid User Name."})
         if not isinstance(user_type, str) or user_type.lower() not in [User.ParkingOwner,User.Customer]:
             raise serializers.ValidationError({"user_type": "Enter a valid user type: 'owner' or 'customer'."})
-        if user_type.lower()  == "customer":
-            if  not number_plate :
-                raise serializers.ValidationError({"number_plate": "Enter a valid Number Plate."})
-            if User.objects.filter(number_plate=number_plate).exists():
-                raise serializers.ValidationError({"number_plate": "Number plate already registered."})
-                        
-            if not licence_number:
-                raise serializers.ValidationError({"licence_number": "Enter a valid Licence Number."})
-            if User.objects.filter(licence_number=licence_number).exists():
-                raise serializers.ValidationError({"licence_number": "Licence Number already registered.."})
-
-            if not rc_book_number :
-                raise serializers.ValidationError({"rc_book_number": "Enter a valid rc book number."})
-            if  User.objects.filter(rc_book_number=rc_book_number).exists():
-                raise serializers.ValidationError({"rc_book_number": "rc book number already registered.."})
-
+        
 
         if len(phone_number) < 10:
             raise serializers.ValidationError({"phone_number": "Enter a valid phone number."})
@@ -88,9 +67,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         if user_type.lower() == "customer":
             if not attrs.get('vehicle_type'):
                 raise serializers.ValidationError({"vehicle_type": "Vehicle type is required for customers."})
-            if not attrs.get('number_plate'):
-                raise serializers.ValidationError({"number_plate": "Number plate is required for customers."})
-            
+
+
         return attrs
 
     def create(self, validated_data):
@@ -108,9 +86,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         user_type = validated_data.get('user_type')
         password = validated_data.pop('password')
         vehicle_type_id = validated_data.pop('vehicle_type', None)
-        number_plate = validated_data.pop('number_plate', None)
-        licence_number = validated_data.pop('licence_number', None)
-        rc_book_number = validated_data.pop('rc_book_number', None)
 
         user = User(**validated_data)
         user.set_password(password)
@@ -123,12 +98,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             customer = Customer.objects.create(
                 user=user,
                 vehicle_type=vehicle_tobj,
-                number_plate=number_plate,
-                licence_number=licence_number,
-                rc_book_number=rc_book_number
             )
             customer.save()
-
         return user
 
 class AdminSerializer(serializers.ModelSerializer):
@@ -136,8 +107,7 @@ class AdminSerializer(serializers.ModelSerializer):
         model = User
         fields = ['full_name', 'email', 'phone_number', 'password', 'age', 'address', 'profile_image']
         extra_kwargs = {
-            'password': {'write_only': True},
-            # 'user_type':{'write_only': True},
+            'password': {'write_only': True, 'required': False},  # allow update without password
         }
 
     def validate(self, attrs):
@@ -147,59 +117,132 @@ class AdminSerializer(serializers.ModelSerializer):
         email = attrs.get("email")
         full_name = attrs.get("full_name")
 
+        instance = getattr(self, 'instance', None)  
+
+        if instance:  
+            if 'email' in attrs and attrs['email'] != instance.email:
+                raise serializers.ValidationError({"email": "Email cannot be changed."})
+
+            if 'phone_number' in attrs and attrs['phone_number'] != instance.phone_number:
+                raise serializers.ValidationError({"phone_number": "Phone number cannot be changed."})
+
         if not full_name:
             raise serializers.ValidationError("Enter a valid User Name.")
 
-        if len(phone_number) < 10 :
-            raise serializers.ValidationError( "Enter a valid phone number.")
+        if not phone_number or len(phone_number) < 10:
+            raise serializers.ValidationError("Enter a valid phone number.")
 
-        if  User.objects.filter(phone_number=phone_number).exists():
-            raise serializers.ValidationError("phone number already registered..")
-        
-        if not isinstance(age, int) or age < 17:
+        user_id = self.instance.id if self.instance else None
+        if User.objects.filter(phone_number=phone_number).exclude(id=user_id).exists():
+            raise serializers.ValidationError("Phone number already registered.")
+
+        if age is not None and (not isinstance(age, int) or age < 17):
             raise serializers.ValidationError("Enter a valid age.")
 
-        if not isinstance(password, str) or len(password) < 6:
+        if password and (not isinstance(password, str) or len(password) < 6):
             raise serializers.ValidationError("Password must be at least 6 characters.")
 
-        if not isinstance(email, str) or User.objects.filter(email=email).exists():
+        if email and User.objects.filter(email=email).exclude(id=user_id).exists():
             raise serializers.ValidationError("Enter a valid and unused email.")
 
         return attrs
 
     def create(self, validated_data):
+        request = self.context.get("request")  # get request from context
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
         user.user_type = User.Admin
+
+        if request and hasattr(request, "user"):
+            user.created_by = request.user
+            user.updated_by = request.user
+
         user.is_verified = True
         user.save()
         return user
 
+    def update(self, instance, validated_data):
+        request = self.context.get("request")  
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if request and hasattr(request, "user"):
+            instance.updated_by = request.user
+
+        instance.save()
+        return instance
 
 
 class OwnerSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = [
-            "id",
-            "full_name",
-            "email",
-            "phone_number",
-            "otp",
-            "age",
-            "address",
-            "profile_image",
-            "user_type",
-            "is_verified",
-        ]
-        read_only_fields = ["user_type"]  # prevent editing user_type from client
+        fields = ['full_name', 'email', 'phone_number', 'password', 'age', 'address', 'profile_image']
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},  # allow update without password
+        }
+
+    def validate(self, attrs):
+        phone_number = attrs.get("phone_number")
+        age = attrs.get("age")
+        password = attrs.get("password")
+        email = attrs.get("email")
+        full_name = attrs.get("full_name")
+
+        instance = getattr(self, 'instance', None)  
+
+        if instance:  
+            if 'email' in attrs and attrs['email'] != instance.email:
+                raise serializers.ValidationError({"email": "Email cannot be changed."})
+
+            if 'phone_number' in attrs and attrs['phone_number'] != instance.phone_number:
+                raise serializers.ValidationError({"phone_number": "Phone number cannot be changed."})
+
+        if not full_name:
+            raise serializers.ValidationError("Enter a valid User Name.")
+
+        if not phone_number or len(phone_number) < 10:
+            raise serializers.ValidationError("Enter a valid phone number.")
+
+        user_id = self.instance.id if self.instance else None
+        if User.objects.filter(phone_number=phone_number).exclude(id=user_id).exists():
+            raise serializers.ValidationError("Phone number already registered.")
+
+        if age is not None and (not isinstance(age, int) or age < 17):
+            raise serializers.ValidationError("Enter a valid age.")
+
+        if password and (not isinstance(password, str) or len(password) < 6):
+            raise serializers.ValidationError("Password must be at least 6 characters.")
+
+        if email and User.objects.filter(email=email).exclude(id=user_id).exists():
+            raise serializers.ValidationError("Enter a valid and unused email.")
+
+        return attrs
 
     def create(self, validated_data):
-        validated_data["user_type"] = User.ParkingOwner  # force owner type
-        return super().create(validated_data)
+        request = self.context.get("request")  # get request from context
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)
+        user.user_type = User.ParkingOwner
+
+        if request and hasattr(request, "user"):
+            user.created_by = request.user
+            user.updated_by = request.user
+
+        user.is_verified = True
+        user.save()
+        return user
 
     def update(self, instance, validated_data):
-        validated_data["user_type"] = User.ParkingOwner  # keep as owner type
-        return super().update(instance, validated_data)
-    
+        request = self.context.get("request")
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if request and hasattr(request, "user"):
+            instance.updated_by = request.user
+
+        instance.save()
+        return instance

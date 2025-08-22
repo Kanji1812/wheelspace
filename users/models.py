@@ -51,9 +51,23 @@ class User(AbstractUser):
     profile_image = models.ImageField(upload_to='profiles/', null=True, blank=True)
     user_type = models.CharField(_("Role"),choices=USER_TYPE_CHOICES,null=False,blank=False)
     is_verified = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        'users.User', 
+        null=True,
+        blank=True,
+        related_name='created_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
+    updated_by = models.ForeignKey(
+        'users.User',  
+        null=True,
+        blank=True,
+        related_name='updated_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
 
-    USERNAME_FIELD = 'email'  # Tell Django to use email as the identifier
-    REQUIRED_FIELDS = ['phone_number', 'user_type']  # Fields required when creating a superuser
+    USERNAME_FIELD = 'email'  
+    REQUIRED_FIELDS = ['phone_number', 'user_type']  
 
     def __str__(self):
         return self.email
@@ -61,6 +75,18 @@ class User(AbstractUser):
 class Customer(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'user_type': 'customer'})
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
-    number_plate = models.CharField(max_length=20, unique=True)
-    licence_number = models.CharField(max_length=20, unique=True)
-    rc_book_number = models.CharField(max_length=20, unique=True)
+    created_by = models.ForeignKey(
+        'users.User', 
+        null=True,
+        blank=True,
+        related_name='created_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
+    updated_by = models.ForeignKey(
+        'users.User',  
+        null=True,
+        blank=True,
+        related_name='updated_%(class)s_objects',
+        on_delete=models.SET_NULL
+    )
+
